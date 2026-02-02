@@ -3,8 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import json
 from datetime import datetime
+import logging
+import uvicorn
+import os
 
-app = FastAPI()
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Grow A Garden API")
 
 # Enable CORS
 app.add_middleware(
@@ -24,12 +31,18 @@ latest_stock = {
     "eventStock": [],
     "merchantsStock": [],
     "weather": None,
-    "timestamp": None
+    "timestamp": None,
+    "connected": False
 }
 
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "Grow a Garden API"}
+    return {
+        "status": "online",
+        "message": "Grow a Garden Real-Time API",
+        "websocket_connected": latest_stock["connected"],
+        "last_update": latest_stock["timestamp"]
+    }
 
 @app.get("/stock")
 async def get_stock():
@@ -37,46 +50,63 @@ async def get_stock():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {
+        "status": "healthy",
+        "websocket_connected": latest_stock["connected"],
+        "timestamp": datetime.now().isoformat()
+    }
 
-# Background task to listen to WebSocket
+# Background WebSocket listener
 async def websocket_listener():
     import websockets
     
-    ws_url = "wss://grown.gleeze.com:2083/"
+    DISCORD_USER_ID = "945342822658224209"  # ⬅️ CHANGE THIS!
+    ws_url = f"wss://websocket.joshlei.com/growagarden?user_id={DISCORD_USER_ID}"
     
     while True:
         try:
-            async with websockets.connect(ws_url) as websocket:
-                print("✅ Connected to WebSocket")
+            logger.info(f"🔌 Connecting to WebSocket: {ws_url}")
+
+            async with websockets.connect(ws_url, ping_interval=30, ping_timeout=10) as websocket:
+                logger.info("✅ Connected to Grow A Garden WebSocket!")
+                latest_stock["connected"] = True
                 
                 async for message in websocket:
-                    data = json.loads(message)
-                    
-                    # Update latest stock
-                    latest_stock.update({
-                        "seedsStock": data.get("seedsStock", []),
-                        "gearStock": data.get("gearStock", []),
-                        "eggStock": data.get("eggStock", []),
-                        "cosmeticsStock": data.get("cosmeticsStock", []),
-                        "eventStock": data.get("eventStock", []),
-                        "merchantsStock": data.get("merchantsStock", []),
-                        "weather": data.get("weather"),
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    
-                    print(f"📦 Stock updated: {len(data.get('seedsStock', []))} seeds")
-                    
+                    try:
+                        data = json.loads(message)
+
+                        # Update latest stock from the new format
+                        latest_stock.update({
+                            "seedsStock": data.get("SEED_STOCK", []),
+                            "gearStock": data.get("GEAR_STOCK", []),
+                            "eggStock": data.get("EGG_STOCK", []),
+                            "cosmeticsStock": data.get("COSMETIC_STOCK", []),
+                            "eventStock": data.get("EVENTSHOP_STOCK", []),
+                            "merchantsStock": [],  # Not in this API
+                            "weather": data.get("WEATHER"),
+                            "timestamp": datetime.now().isoformat(),
+                            "connected": True
+                        })
+
+                        seeds_count = len(data.get("SEED_STOCK", []))
+                        logger.info(f"📦 Stock updated: {seeds_count} seeds available")
+
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ JSON parse error: {e}")
+                        continue
+
         except Exception as e:
-            print(f"❌ WebSocket error: {e}")
-            await asyncio.sleep(5)  # Retry after 5 seconds
+            logger.error(f"❌ WebSocket error: {e}")
+            latest_stock["connected"] = False
+            await asyncio.sleep(5)  # Wait before reconnecting
 
 @app.on_event("startup")
 async def startup_event():
-    # Start WebSocket listener in background
+    logger.info("🚀 Starting API server...")
     asyncio.create_task(websocket_listener())
-    print("🚀 API Server started with WebSocket listener")
+    logger.info("🎧 WebSocket listener started")
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
