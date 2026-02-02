@@ -30,7 +30,8 @@ latest_stock = {
     "merchantsStock": [],
     "weather": None,
     "timestamp": None,
-    "connected": False
+    "connected": False,
+    "raw_response": None  # ADD: Store raw API response for debugging
 }
 
 @app.get("/")
@@ -46,6 +47,14 @@ async def root():
 @app.get("/stock")
 async def get_stock():
     return latest_stock
+
+@app.get("/debug")
+async def debug():
+    """Returns raw API response for debugging"""
+    return {
+        "raw_response": latest_stock.get("raw_response"),
+        "timestamp": latest_stock.get("timestamp")
+    }
 
 @app.get("/health")
 async def health():
@@ -70,66 +79,91 @@ async def fetch_stock_data():
                     if response.status == 200:
                         data = await response.json()
                         
+                        # STORE RAW RESPONSE FOR DEBUGGING
+                        latest_stock["raw_response"] = data
+                        
+                        # LOG THE STRUCTURE
+                        logger.info(f"📊 API Response keys: {list(data.keys())}")
+                        logger.info(f"📊 Full response: {json.dumps(data)[:500]}")
+                        
                         # Transform gleeze.com format to our format
                         seed_items = []
-                        for item in data.get("seed", {}).get("items", []):
-                            seed_items.append({
-                                "name": item.get("name", "Unknown"),
-                                "stock": item.get("stock", 0),
-                                "rarity": item.get("rarity", "Unknown"),
-                                "price": item.get("price", 0),
-                                "imageUrl": item.get("imageUrl", "")
-                            })
+                        if "seed" in data and isinstance(data["seed"], dict):
+                            items = data["seed"].get("items", [])
+                            logger.info(f"🌱 Found {len(items)} seed items")
+                            for item in items:
+                                seed_items.append({
+                                    "name": item.get("name", "Unknown"),
+                                    "stock": item.get("stock", 0),
+                                    "rarity": item.get("rarity", "Unknown"),
+                                    "price": item.get("price", 0),
+                                    "imageUrl": item.get("imageUrl", "")
+                                })
                         
                         gear_items = []
-                        for item in data.get("gear", {}).get("items", []):
-                            gear_items.append({
-                                "name": item.get("name", "Unknown"),
-                                "stock": item.get("stock", 0),
-                                "rarity": item.get("rarity", "Unknown"),
-                                "price": item.get("price", 0),
-                                "imageUrl": item.get("imageUrl", "")
-                            })
+                        if "gear" in data and isinstance(data["gear"], dict):
+                            items = data["gear"].get("items", [])
+                            logger.info(f"⚙️  Found {len(items)} gear items")
+                            for item in items:
+                                gear_items.append({
+                                    "name": item.get("name", "Unknown"),
+                                    "stock": item.get("stock", 0),
+                                    "rarity": item.get("rarity", "Unknown"),
+                                    "price": item.get("price", 0),
+                                    "imageUrl": item.get("imageUrl", "")
+                                })
                         
                         egg_items = []
-                        for item in data.get("egg", {}).get("items", []):
-                            egg_items.append({
-                                "name": item.get("name", "Unknown"),
-                                "stock": item.get("stock", 0),
-                                "rarity": item.get("rarity", "Unknown"),
-                                "price": item.get("price", 0),
-                                "imageUrl": item.get("imageUrl", "")
-                            })
+                        if "egg" in data and isinstance(data["egg"], dict):
+                            items = data["egg"].get("items", [])
+                            logger.info(f"🥚 Found {len(items)} egg items")
+                            for item in items:
+                                egg_items.append({
+                                    "name": item.get("name", "Unknown"),
+                                    "stock": item.get("stock", 0),
+                                    "rarity": item.get("rarity", "Unknown"),
+                                    "price": item.get("price", 0),
+                                    "imageUrl": item.get("imageUrl", "")
+                                })
                         
                         cosmetic_items = []
-                        for item in data.get("cosmetic", {}).get("items", []):
-                            cosmetic_items.append({
-                                "name": item.get("name", "Unknown"),
-                                "stock": item.get("stock", 0),
-                                "rarity": item.get("rarity", "Unknown"),
-                                "price": item.get("price", 0),
-                                "imageUrl": item.get("imageUrl", "")
-                            })
+                        if "cosmetic" in data and isinstance(data["cosmetic"], dict):
+                            items = data["cosmetic"].get("items", [])
+                            logger.info(f"✨ Found {len(items)} cosmetic items")
+                            for item in items:
+                                cosmetic_items.append({
+                                    "name": item.get("name", "Unknown"),
+                                    "stock": item.get("stock", 0),
+                                    "rarity": item.get("rarity", "Unknown"),
+                                    "price": item.get("price", 0),
+                                    "imageUrl": item.get("imageUrl", "")
+                                })
                         
                         event_items = []
-                        for item in data.get("event", {}).get("items", []):
-                            event_items.append({
-                                "name": item.get("name", "Unknown"),
-                                "stock": item.get("stock", 0),
-                                "rarity": item.get("rarity", "Unknown"),
-                                "price": item.get("price", 0),
-                                "imageUrl": item.get("imageUrl", "")
-                            })
+                        if "event" in data and isinstance(data["event"], dict):
+                            items = data["event"].get("items", [])
+                            logger.info(f"🎉 Found {len(items)} event items")
+                            for item in items:
+                                event_items.append({
+                                    "name": item.get("name", "Unknown"),
+                                    "stock": item.get("stock", 0),
+                                    "rarity": item.get("rarity", "Unknown"),
+                                    "price": item.get("price", 0),
+                                    "imageUrl": item.get("imageUrl", "")
+                                })
                         
                         merchant_items = []
-                        for item in data.get("merchant", {}).get("items", []):
-                            merchant_items.append({
-                                "name": item.get("name", "Unknown"),
-                                "stock": item.get("stock", 0),
-                                "rarity": item.get("rarity", "Unknown"),
-                                "price": item.get("price", 0),
-                                "imageUrl": item.get("imageUrl", "")
-                            })
+                        if "merchant" in data and isinstance(data["merchant"], dict):
+                            items = data["merchant"].get("items", [])
+                            logger.info(f"🛒 Found {len(items)} merchant items")
+                            for item in items:
+                                merchant_items.append({
+                                    "name": item.get("name", "Unknown"),
+                                    "stock": item.get("stock", 0),
+                                    "rarity": item.get("rarity", "Unknown"),
+                                    "price": item.get("price", 0),
+                                    "imageUrl": item.get("imageUrl", "")
+                                })
                         
                         # Update stock
                         latest_stock.update({
